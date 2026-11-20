@@ -50,12 +50,14 @@
       if (b.t === 'notes') return '<div class="of-notes"><p><b>Notes:</b></p><ol>' + b.items.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ol></div>';
       return '';
     }
+    /* credit: one small line under the signature, outside the form's own layout (the form's parts and wording stay as prescribed) */
+    function cl() { return NS.creditLine ? NS.creditLine('made dc-cl') : ''; }
     var one = function (tag) {
-      if (g.blocks) return '<article class="dc-sheet dc-off">' + (tag ? '<p class="dc-tag">' + esc(t(tag)) + '</p>' : '') + g.blocks.map(block).join('') + '</article>';
+      if (g.blocks) return '<article class="dc-sheet dc-off">' + (tag ? '<p class="dc-tag">' + esc(t(tag)) + '</p>' : '') + g.blocks.map(block).join('') + cl() + '</article>';
       return '<article class="dc-sheet">' + (tag ? '<p class="dc-tag">' + esc(t(tag)) + '</p>' : '') + '<h2>' + esc(g.title) + '</h2>' + (g.sub ? '<p class="dc-sub">' + esc(g.sub) + '</p>' : '') +
         (g.rows.length ? '<table class="dc-rows"><tbody>' + g.rows.map(function (r) { return '<tr><th>' + esc(r[0]) + '</th><td>' + esc(String(r[1])) + '</td></tr>'; }).join('') + '</tbody></table>' : '') +
         g.paras.map(function (p) { return '<p>' + esc(p) + '</p>'; }).join('') +
-        '<div class="dc-sign"><div><p>Place: ' + esc(g.sign.place) + '</p><p>Date: ' + esc(g.sign.date) + '</p></div><div class="dc-sg"><p class="dc-line"></p><p>' + esc(g.sign.name) + '</p></div></div></article>'; };
+        '<div class="dc-sign"><div><p>Place: ' + esc(g.sign.place) + '</p><p>Date: ' + esc(g.sign.date) + '</p></div><div class="dc-sg"><p class="dc-line"></p><p>' + esc(g.sign.name) + '</p></div></div>' + cl() + '</article>'; };
     $('#dc-sheet').innerHTML = copies.map(one).join('');
     $('#dc-sheet').dataset.text = g.text;
   }
