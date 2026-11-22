@@ -44,6 +44,9 @@
   function cells(x, n) { var a = s(x) ? String(x).split(/\r?\n/) : [], out = [], i; for (i = 0; i < n; i++) out.push(String(a[i] || '').split('|').map(s)); return out; }
   function blank(n, w) { var r = [], i, j; for (i = 0; i < n; i++) { var c = []; for (j = 0; j < w; j++) c.push(''); r.push(c); } return r; }
   function nn(x) { return +s(x).replace(/,/g, '') || 0; }
+  function inr(x) { return (Math.round(x * 100) / 100).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+  /* 'INV-101 | 05-11-2026 | 2,50,000' lines -> [no, date, amount]; a line needs a bill no. or an amount */
+  function billsOf(x) { return lines(x).map(function (l) { var c = l.split('|').map(s); return [c[0] || '', c[1] || '', c[2] || '']; }).filter(function (r) { return r[0] || r[2]; }); }
   function sumOf(a) { var any = false, t = 0; a.forEach(function (x) { if (s(x) !== '') { any = true; t += nn(x); } }); return any ? String(Math.round(t * 100) / 100) : ''; }
   function box(on, label) { return (on ? '☑ ' : '☐ ') + label; }
   function join() { return Array.prototype.slice.call(arguments).filter(function (x) { return s(x); }).join(', '); }
@@ -71,16 +74,24 @@
       fld('goods', 'Nature of goods', { type: 'select', opts: GOODS.map(function (g) { return [g[0], g[1] + ' (394(1) ' + g[2] + ')']; }), req: 1 }),
       fld('use', 'Purpose of utilization of goods', { type: 'select', opts: [['mfg', 'Manufacturing, processing, production of articles or things'], ['power', 'Generation of power']], req: 1 }),
       fld('amt', 'Estimated amount of payment for which no collection of tax is asked (₹)', { type: 'num', req: 1 }),
+      fld('bills', 'Bills covered (optional, one on each line: bill no. | date | amount). Leave the amount above empty and it becomes their total; the bills print as an annexure', { type: 'area', ph: 'INV-101 | 05-11-2026 | 250000' }),
       fld('cap', 'Capacity in which you sign (for example proprietor, partner, director)', { me: 'cap' }),
       fld('seller', 'Seller (Part B, optional): name', {}), fld('saddr', 'Seller: address', { type: 'area' }), fld('span', 'Seller: PAN', { pan: 1 }), fld('stan', 'Seller: TAN', { tan: 1 })],
     body: function (v) {
       var use = v.use === 'power' ? 'Generation of power' : 'Manufacturing, processing, production of articles or things';
       var goods = v.goods ? goodsName(v.goods) + ' (Table Sl. No. ' + goodsSl(v.goods).replace('Sl. ', '') + ')' : '';
+      /* owner 22 Nov: some buyers list their bills (no., date, amount) instead of one estimated amount: an annexure, and row 10 = their total */
+      var bl = billsOf(v.bills), btot = bl.length ? inr(bl.reduce(function (a, r) { return a + nn(r[2]); }, 0)) : '';
+      if (bl.length && !s(v.amt)) v.amt = btot;
+      var amt10 = s(v.amt) + (bl.length ? ' (' + bl.length + (bl.length === 1 ? ' bill' : ' bills') + ' listed in the annexure)' : '');
+      var annex = bl.length ? [part('Annexure to Form No. 127', 'Bills covered by this declaration (Sl. No. 10 of Part A)'),
+        grid(['Sl. No.', 'Bill No.', 'Bill date', 'Amount (₹)'], bl.map(function (r, i) { return [String(i + 1) + '.', r[0], r[1], inr(nn(r[2]))]; }).concat([['', 'Total', '', btot]])),
+        sign(['Place: ' + s(v.place), 'Date: ' + dmy(v.date)], ['Signature of the declarant:', 'Name: ' + s(v.sign || v.name)])] : [];
       return { blocks: [head('FORM NO. 127', '[See rule 212]', 'Declaration under section 394(2) to be made by a buyer for obtaining goods without collection of tax'),
         part('Part A: Particulars of the Buyer'),
         rows([['1.', 'Name (refer Note 1)', v.name], ['2.', 'Address (refer Note 2)', v.addr], ['3.', 'Permanent Account Number', up(v.pan)], ['4.', 'Residential Status (refer Note 3)', v.resid], ['5.', 'Email id', v.email], ['6.', 'Contact number (Country Code, Number)', v.phone], ['7.', 'Nature of Business/Occupation', v.biz],
           ['8.', 'Nature of goods [referred to in sub-section 1 of Section 394] [Table Sl. No. 1 to 5]', goods], ['9.', 'Purpose of utilization of goods (select one)', box(v.use !== 'power' && !!v.use, 'Manufacturing, processing, production of articles or things') + '\n' + box(v.use === 'power', 'Generation of power')],
-          ['10.', 'Estimated amount of payment for which declaration is being made for no collection of tax', v.amt]]),
+          ['10.', 'Estimated amount of payment for which declaration is being made for no collection of tax', amt10]]),
         decl('Declaration', ['I ' + dots(v.sign || v.name, 20) + ' (name of the declarant) having Permanent Account Number ' + dots(up(v.pan), 12) + ' in my capacity as ' + dots(v.cap, 12) + ' (designation) of ' + dots(v.name, 14) + ' (name of the buyer) do hereby declare that to the best of my knowledge and belief what is stated above is correct, complete and is truly stated.',
           'I declare that the goods referred to in Column No. 8 shall not be used for trading purposes.', 'I also declare that I am resident in India within the meaning of section 6.']),
         sign(['Place: ' + s(v.place), 'Date: ' + dmy(v.date)], ['**Signature of the declarant:', 'Name: ' + s(v.sign || v.name)]),
@@ -88,11 +99,11 @@
         notes([N_NAME, N_ADDR, N_RES, N_AMT]),
         part('Part B: Particulars of the seller', '[For use by the person to whom the declaration is furnished]'),
         rows([['1.', 'Name (refer Note 1)', v.seller], ['2.', 'Address (refer Note 2)', v.saddr], ['3.', 'Permanent Account Number', up(v.span)], ['4.', 'Tax Deduction and Collection Account Number', up(v.stan)], ['5.', 'Status (refer Note 3)', ''], ['6.', 'Email id', ''], ['7.', 'Contact number (Country Code, Number)', ''],
-          ['8.', 'Date on which declaration is furnished (dd/mm/yyyy)', ''], ['9.', 'Date of debit or receipt of the amount payable by the buyer (dd/mm/yyyy)', ''], ['10.', 'Estimated amount of payment for which declaration is being made for no collection of tax ( as per Sl. No. 10 of Part A)', v.amt]]),
+          ['8.', 'Date on which declaration is furnished (dd/mm/yyyy)', ''], ['9.', 'Date of debit or receipt of the amount payable by the buyer (dd/mm/yyyy)', ''], ['10.', 'Estimated amount of payment for which declaration is being made for no collection of tax ( as per Sl. No. 10 of Part A)', amt10]]),
         text(['Forwarded to the Chief Commissioner or Commissioner of Income-tax ' + dots('', 30)]),
         decl('Declaration', ['I ' + dots('', 24) + ' (name of the person responsible for collecting tax) having Permanent Account Number ' + dots('', 12) + ' in my capacity as ' + dots('', 10) + ' (designation) of ' + dots(v.seller, 14) + ' (name of the seller) do hereby declare that to the best of my knowledge and belief what is stated above is correct, complete and is truly stated.']),
         sign(['Place: ' + dots('', 12), 'Date: ' + dots('', 12)], ['Signature of the person responsible for collecting tax', 'Name:', 'Designation:']),
-        notes([N_NAME, N_ADDR, N_STAT, 'The declaration should be furnished in duplicate.', 'Before signing the verification, the declarant should satisfy himself that the information furnished in the declaration is true, correct and complete in all respects. Any person making a false statement in the declaration shall be liable to prosecution under section 482.', N_PRE, N_AMT])] };
+        notes([N_NAME, N_ADDR, N_STAT, 'The declaration should be furnished in duplicate.', 'Before signing the verification, the declarant should satisfy himself that the information furnished in the declaration is true, correct and complete in all respects. Any person making a false statement in the declaration shall be liable to prosecution under section 482.', N_PRE, N_AMT])].concat(annex) };
     } });
 
   add({ id: 'niltax', group: 'tax', sheet: 'FORM NO. 121', official: 1, title: 'Form 121: declaration of nil estimated tax (old 15G/15H)', sub: 'Declaration under section 393(6) for receipt of certain incomes without deduction of tax',
@@ -476,16 +487,21 @@
     var out = [];
     f.fields.forEach(function (fl) {
       var val = s(v[fl.k]);
-      if (fl.req && !val) out.push({ k: fl.k, why: 'empty' });
+      if (fl.req && !val && !(f.id === 'f127' && fl.k === 'amt' && billsOf(v.bills).length)) out.push({ k: fl.k, why: 'empty' });
       else if (val) {
         if (fl.pan && !PAN.test(up(val))) out.push({ k: fl.k, why: 'pan' });
         if (fl.tan && !TAN.test(up(val))) out.push({ k: fl.k, why: 'tan' });
         if (fl.gstin && !GSTIN.test(up(val))) out.push({ k: fl.k, why: 'gstin' });
         if (fl.udyam && !UDYAM.test(up(val))) out.push({ k: fl.k, why: 'udyam' });
-        if (fl.type === 'num' && !(+val >= 0)) out.push({ k: fl.k, why: 'num' });
+        if (fl.type === 'num' && !(+val.replace(/,/g, '') >= 0)) out.push({ k: fl.k, why: 'num' });
       }
     });
     if (f.id === 'transporter' && +v.n > 10) out.push({ k: 'n', why: 'ten' });
+    if (f.id === 'f127' && s(v.bills)) {
+      var bb = billsOf(v.bills), bt = bb.reduce(function (a, r) { return a + nn(r[2]); }, 0);
+      if (bb.some(function (r) { return !(nn(r[2]) > 0); })) out.push({ k: 'bills', why: 'billamt' });
+      else if (s(v.amt) && Math.abs(nn(v.amt) - bt) > 1) out.push({ k: 'amt', why: 'billsum' });
+    }
     if (f.id === 'f184' && s(v.nom)) { var ns = nominees(v), tot = ns.reduce(function (a, x) { return a + x.share; }, 0); if (Math.abs(tot - 100) > 0.001) out.push({ k: 'nom', why: 'share' }); if (ns.some(function (x) { return +x.age > 0 && +x.age < 18 && !x.gname; })) out.push({ k: 'nom', why: 'guard' }); }
     if (!f.nodate && !s(v.date)) out.push({ k: 'date', why: 'empty' });
     return out;
