@@ -91,9 +91,19 @@
     }
     $('#dc-fields').addEventListener('input', function (e) { var k = e.target.dataset.k; if (!k) return; if (e.target.dataset.r != null) return setCell(e.target); vals[k] = e.target.value; sheet(); saveDraft(); });
     $('#dc-fields').addEventListener('change', function (e) { var k = e.target.dataset.k; if (!k || e.target.dataset.r != null) return; vals[k] = e.target.value; sheet(); saveDraft(); });
+    /* makers-better (27 Nov 2026): the same bottom bar as the other makers on phones and tablets: Preview, Print / PDF, Share as PDF */
+    (function () {
+      var bar = document.createElement('div'); bar.className = 'mk-dcbar'; bar.setAttribute('role', 'group');
+      bar.innerHTML = '<button type="button" class="btn" data-dc="pv" data-ic="eye" data-i18n="tab.preview">' + esc(t('tab.preview')) + '</button>' +
+        '<button type="button" class="btn primary" data-dc="print" data-ic="print" data-i18n="dc.print">' + esc(t('dc.print')) + '</button>' +
+        '<button type="button" class="btn" data-dc="share" data-ic="share" data-i18n="b.share">' + esc(t('b.share')) + '</button>';
+      root.appendChild(bar);
+    })();
     root.addEventListener('click', function (e) {
       var b = e.target.closest('button[data-dc]'); if (!b) return; var a = b.dataset.dc;
       if (a === 'print') window.print();
+      else if (a === 'pv') { var sh0 = $('#dc-sheet'); if (sh0) sh0.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+      else if (a === 'share') { var sh = $('#dc-sheet .dc-sheet') || $('#dc-sheet'); if (sh && NS.sharePdf) NS.sharePdf([sh], cur + '-declaration', 'a4', ($('#dc-form') && $('#dc-form').selectedOptions[0] ? $('#dc-form').selectedOptions[0].textContent : 'Declaration'), $('#dc-sheet').dataset.text || ''); }
       else if (a === 'copy') { var tx = $('#dc-sheet').dataset.text; (navigator.clipboard ? navigator.clipboard.writeText(tx) : Promise.reject()).then(function () { NS.toast(t('dc.copied')); }, function () { NS.toast(t('dc.nocopy'), 'bad'); }); }
       else if (a === 'txt') { var bl = new Blob([$('#dc-sheet').dataset.text], { type: 'text/plain;charset=utf-8' }), u = URL.createObjectURL(bl), l = document.createElement('a'); l.href = u; l.download = cur + '-declaration.txt'; document.body.appendChild(l); l.click(); l.remove(); setTimeout(function () { URL.revokeObjectURL(u); }, 2000); }
       else if (a === 'reset') { vals = {}; defaults(); drawForm(); saveDraft(); }
